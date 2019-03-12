@@ -2,6 +2,9 @@
 #include <vector>
 #include <cmath>
 #include <opencv2/opencv.hpp>
+#include <stack>
+#include <queue>
+
 
 #define PI 3.14159
 
@@ -98,7 +101,7 @@ void getGrad(const cv::Mat &input, cv::Mat &output)
 					data2 = p_br * weight + p_rm * (1 - weight);
 					
 				}
-				if (data1 > output.at<uchar>(i, j) || data2 > output.at<uchar>(i, j))
+				if (data1 >= output.at<uchar>(i, j) || data2 >= output.at<uchar>(i, j))
 					output.at<uchar>(i, j) = 0;
 			}
 		}
@@ -120,17 +123,91 @@ void doubleThreshold(cv::Mat &img, const int &hight_thres, const int &low_thres)
 				img.at<uchar>(i, j) = 125;
 		}
 	}
+
+	//connected
+	std::stack<cv::Point> s;
+	std::queue<cv::Point> q;
+	bool connected = false;
+
+	cv::Mat lbl_mat = cv::Mat::zeros(img.size(), CV_8UC1);
+	for (int i = 0; i < img.rows; i++)
+	{
+		for (int j = 0; j < img.cols; j++)
+		{
+			if (img.at<uchar>(i, j) == 125)
+			{
+				s.push(cv::Point(i, j));
+				q.push(cv::Point(i, j));
+				lbl_mat.at<uchar>(i, j) = 1;       // Label it
+
+				while (!s.empty())
+				{
+					cv::Point p = s.top();
+					s.pop();
+
+					for (int k = 0; k < nebirhood_8.size(); k++)
+					{
+						int x = p.x + nebirhood_8[k].x;
+						int y = p.y + nebirhood_8[k].y;
+						if (img.at<uchar>(x, y) == 125)
+						{
+							if (lbl_mat.at<uchar>(x, y) == 0)
+							{
+								q.push(cv::Point(x, y));
+								s.push(cv::Point(x, y));
+								lbl_mat.at<uchar>(x, y) = 1;
+							}
+
+						}
+						if (img.at<uchar>(x, y) == 255)
+						{
+							connected = true;
+						}
+					}
+
+				}
+				if (connected == false)
+				{
+					while (!q.empty())
+					{
+						cv::Point pt = q.front();
+						q.pop();
+						img.at<uchar>(pt.x, pt.y) = 0;
+					}
+				}
+				else
+				{
+					while (!q.empty())
+					{
+						cv::Point pt = q.front();
+						q.pop();
+						img.at<uchar>(pt.x, pt.y) = 255;
+						connected = false;
+					}
+				}
+			}
+		}
+	}
+
+
 }
 
 int main()
 {
 	cv::Mat src = cv::imread("C:/Users/123/Pictures/Saved Pictures/4.jpg");
+	cv::Mat src_gray;
+	cv::cvtColor(src, src_gray, CV_BGR2GRAY);
+	cv::blur(src_gray, src_gray, cv::Size(3, 3));
 	cv::Mat dst;
-	getGrad(src, dst);
+	getGrad(src_gray, dst);
 	doubleThreshold(dst, 100, 50);
 	cv::imshow("test", dst);
+
+	cv::Mat canny_opencv;
+	cv::Canny(src_gray, canny_opencv, 50, 100);
+	cv::imshow("opencv", canny_opencv);
 	cv::waitKey();
 	
-
+	
 	return 0;
 }
